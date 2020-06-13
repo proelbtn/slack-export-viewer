@@ -4,6 +4,8 @@ import datetime
 import logging
 import emoji
 
+import pendulum
+
 class Message(object):
 
     _DEFAULT_USER_ICON_SIZE = 72
@@ -53,7 +55,9 @@ class Message(object):
     def time(self):
         # Handle this: "ts": "1456427378.000002"
         tsepoch = float(self._message["ts"].split(".")[0])
-        return str(datetime.datetime.fromtimestamp(tsepoch)).split('.')[0]
+        dt = pendulum.from_timestamp(tsepoch, tz="Asia/Tokyo")
+        return dt.format("YYYY-MM-DD HH:mm:ss")
+        return 
 
     @property
     def attachments(self):
