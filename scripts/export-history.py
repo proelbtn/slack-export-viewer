@@ -207,7 +207,6 @@ def main(args: argparse.Namespace):
     L.info("fetching messages...")
     messages: Dict[str, List[Any]] = {}
     for channel in channels:
-        print(channel)
         if user["user_id"] in channel["members"]:
             messages[channel["name"]] = get_messages(cli, channel)
 
