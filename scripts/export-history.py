@@ -184,6 +184,7 @@ def output(dest: str, channels: List[Any], users: List[Any], messages: Dict[str,
             msgs[key].append(msg)
 
         for key in msgs.keys():
+            msgs[key] = sorted(msgs[key], key=lambda m: float(m["ts"]))
             with open(f"{channel_dir}/{key}.json", "w") as f:
                 f.write(json.dumps(msgs[key]))
 
