@@ -62,6 +62,12 @@ class Client:
             params["cursor"] = cursor
         return self._get(self.baseurl + "/conversations.history", params)
 
+    def conversations_replies(self, channel: str, ts: str, cursor: str = None):
+        params = {"channel": channel, "ts": ts}
+        if cursor is not None:
+            params["cursor"] = cursor
+        return self._get(self.baseurl + "/conversations.replies", params)
+
     def conversations_join(self, channel: str):
         params = {"channel": channel}
         return self._post(self.baseurl + "/conversations.join", params)
@@ -75,6 +81,10 @@ class Client:
     def users_profile_set(self, user: str, key: str, value: str):
         params = {"user": user, "name": key, "value": value}
         return self._post(self.baseurl + "/users.profile.set", params)
+
+
+def is_thread_parent(msg: Any) -> bool:
+    return "thread_ts" in msg and msg["ts"] == msg["thread_ts"]
 
 
 def get_channels(cli: Client) -> List[Any]:
@@ -125,6 +135,19 @@ def get_users(cli: Client) -> List[Any]:
     return users
 
 
+def get_replies(cli: Client, channel: Any, ts: str) -> List[Any]:
+    messages: List[Any] = []
+    next_cursor = None
+    while next_cursor != "":
+        data = cli.conversations_replies(channel["id"], ts, next_cursor)
+        if not data["ok"]:
+            raise RuntimeError(f"request failed: (data={data})")
+        messages += data["messages"]
+        next_cursor = data["response_metadata"]["next_cursor"] if data["has_more"] else ""
+
+    return messages
+
+
 def get_messages(cli: Client, channel: Any) -> List[Any]:
     L.info(f"fetching messages for channel {channel['name']}...")
     messages: List[Any] = []
@@ -134,11 +157,23 @@ def get_messages(cli: Client, channel: Any) -> List[Any]:
         if not data["ok"]:
             raise RuntimeError(f"request failed: (data={data})")
         messages += data["messages"]
+        next_cursor = data["response_metadata"]["next_cursor"] if data["has_more"] else ""
 
-        if not data["has_more"]:
-            next_cursor = ""
-        else:
-            next_cursor = data["response_metadata"]["next_cursor"]
+    thread_broadcast_set = set()
+    for msg in messages:
+        if "subtype" in msg and msg["subtype"] == "thread_broadcast":
+            thread_broadcast_set.add(msg["ts"])
+
+    for msg in messages:
+        if is_thread_parent(msg):
+            replies = get_replies(cli, channel, msg["thread_ts"])
+            msg["replies"] = []
+            for reply in replies:
+                if msg["ts"] == reply["ts"]:
+                    continue
+                msg["replies"].append({"user": reply["user"], "ts": reply["ts"]})
+                if not reply["ts"] in thread_broadcast_set:
+                    messages.append(reply)
 
     return messages
 
